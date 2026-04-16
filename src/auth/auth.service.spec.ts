@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { Prisma } from '../../generated/prisma';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -46,7 +47,6 @@ describe('AuthService', () => {
 
   describe('register', () => {
     it('should hash the password and return an access_token', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
       prisma.user.create.mockResolvedValue(mockUser);
 
       const result = await service.register({
@@ -54,9 +54,6 @@ describe('AuthService', () => {
         password: 'plaintext123',
       });
 
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { email: 'test@example.com' },
-      });
       const createCall = prisma.user.create.mock.calls[0][0];
       expect(createCall.data.password).not.toBe('plaintext123');
       expect(createCall.data.password).toMatch(/^\$2/);
@@ -67,14 +64,25 @@ describe('AuthService', () => {
       expect(result).toEqual({ access_token: 'signed.jwt.token' });
     });
 
-    it('should throw ConflictException when email already exists', async () => {
-      prisma.user.findUnique.mockResolvedValue(mockUser);
+    it('should throw ConflictException on unique constraint violation', async () => {
+      prisma.user.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: '6.0.0',
+        }),
+      );
 
       await expect(
-        service.register({ email: 'test@example.com', password: 'any' }),
+        service.register({ email: 'test@example.com', password: 'anypassword' }),
       ).rejects.toThrow(ConflictException);
+    });
 
-      expect(prisma.user.create).not.toHaveBeenCalled();
+    it('should rethrow unexpected errors from create', async () => {
+      prisma.user.create.mockRejectedValue(new Error('DB connection lost'));
+
+      await expect(
+        service.register({ email: 'test@example.com', password: 'anypassword' }),
+      ).rejects.toThrow('DB connection lost');
     });
   });
 
