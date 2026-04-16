@@ -3,10 +3,10 @@ import { ApplicationStatus } from '../../../generated/prisma';
 
 export class CreateApplicationDto {
   @IsString()
-  company: string;
+  company!: string;
 
   @IsString()
-  role: string; 
+  role!: string; 
 
   @IsEnum(ApplicationStatus)
   @IsOptional()
