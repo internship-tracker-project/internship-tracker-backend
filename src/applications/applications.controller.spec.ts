@@ -77,7 +77,10 @@ describe('ApplicationsController', () => {
 
       const result = await controller.findOne(user, mockApplication.id);
 
-      expect(service.findOne).toHaveBeenCalledWith(mockApplication.id, user.sub);
+      expect(service.findOne).toHaveBeenCalledWith(
+        mockApplication.id,
+        user.sub,
+      );
       expect(result).toEqual(mockApplication);
     });
 
@@ -86,9 +89,9 @@ describe('ApplicationsController', () => {
         new NotFoundException('Application not found'),
       );
 
-      await expect(
-        controller.findOne(user, 'nonexistent-id'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(controller.findOne(user, 'nonexistent-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

@@ -105,9 +105,9 @@ describe('ApplicationsService', () => {
     it('should throw NotFoundException when application does not exist', async () => {
       prisma.application.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.findOne('nonexistent-id', userId),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('nonexistent-id', userId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw NotFoundException when application belongs to another user', async () => {
@@ -140,7 +140,9 @@ describe('ApplicationsService', () => {
       prisma.application.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.update('nonexistent-id', userId, { status: 'INTERVIEW' as any }),
+        service.update('nonexistent-id', userId, {
+          status: 'INTERVIEW' as any,
+        }),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -161,9 +163,9 @@ describe('ApplicationsService', () => {
     it('should throw NotFoundException when application does not exist', async () => {
       prisma.application.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.remove('nonexistent-id', userId),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.remove('nonexistent-id', userId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });
