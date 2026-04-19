@@ -6,6 +6,7 @@ build/
 # environment
 .env
 .env.local
+.env.test
 
 # IDE
 .vscode/
@@ -18,6 +19,17 @@ Thumbs.db
 # Testing
 coverage/
 .nyc_output/
+
+# Claude Code
+.claude/
+CLAUDE.md
+CC-Session-Logs/
+
+# MCP config
+.mcp.json
+
+# Build cache
+*.tsbuildinfo
 
 # Misc
 npm-debug.log*
