@@ -23,6 +23,7 @@ coverage/
 # Claude Code
 .claude/
 CLAUDE.md
+CC-Session-Logs/
 
 # MCP config
 .mcp.json
