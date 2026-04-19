@@ -25,7 +25,9 @@ describe('AuthController', () => {
 
   describe('POST /auth/register', () => {
     it('should return access_token on successful registration', async () => {
-      authService.register.mockResolvedValue({ access_token: 'token.for.register' });
+      authService.register.mockResolvedValue({
+        access_token: 'token.for.register',
+      });
 
       const result = await controller.register({
         email: 'new@example.com',

@@ -73,7 +73,10 @@ describe('AuthService', () => {
       );
 
       await expect(
-        service.register({ email: 'test@example.com', password: 'anypassword' }),
+        service.register({
+          email: 'test@example.com',
+          password: 'anypassword',
+        }),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -81,7 +84,10 @@ describe('AuthService', () => {
       prisma.user.create.mockRejectedValue(new Error('DB connection lost'));
 
       await expect(
-        service.register({ email: 'test@example.com', password: 'anypassword' }),
+        service.register({
+          email: 'test@example.com',
+          password: 'anypassword',
+        }),
       ).rejects.toThrow('DB connection lost');
     });
   });
@@ -122,7 +128,10 @@ describe('AuthService', () => {
       });
 
       await expect(
-        service.login({ email: 'test@example.com', password: 'wrong_password' }),
+        service.login({
+          email: 'test@example.com',
+          password: 'wrong_password',
+        }),
       ).rejects.toThrow(UnauthorizedException);
     });
 
