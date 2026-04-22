@@ -1,12 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { JobListing, Prisma } from '../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdzunaAdapter } from './adapters/adzuna.adapter';
 import type { FetchInternshipsOptions } from './adapters/adzuna.adapter';
+import type { ListJobsDto } from './dto/list-jobs.dto';
 
 export interface IngestResult {
   fetched: number;
   upserted: number;
   failed: number;
+}
+
+export interface ListJobsResult {
+  results: JobListing[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 @Injectable()
@@ -61,5 +70,45 @@ export class JobsService {
       `Ingest complete: fetched=${result.fetched} upserted=${result.upserted} failed=${result.failed}`,
     );
     return result;
+  }
+
+  async list(dto: ListJobsDto = {}): Promise<ListJobsResult> {
+    const page = dto.page ?? 1;
+    const pageSize = dto.pageSize ?? 20;
+    const where = this.buildWhere(dto);
+
+    const [total, results] = await this.prisma.$transaction([
+      this.prisma.jobListing.count({ where }),
+      this.prisma.jobListing.findMany({
+        where,
+        orderBy: { postedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return { results, total, page, pageSize };
+  }
+
+  private buildWhere(dto: ListJobsDto): Prisma.JobListingWhereInput {
+    const conditions: Prisma.JobListingWhereInput[] = [];
+
+    if (dto.q) {
+      conditions.push({
+        OR: [
+          { title: { contains: dto.q, mode: 'insensitive' } },
+          { company: { contains: dto.q, mode: 'insensitive' } },
+          { description: { contains: dto.q, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    if (dto.location) {
+      conditions.push({
+        location: { contains: dto.location, mode: 'insensitive' },
+      });
+    }
+
+    return conditions.length ? { AND: conditions } : {};
   }
 }
