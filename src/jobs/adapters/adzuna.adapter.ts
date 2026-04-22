@@ -44,7 +44,6 @@ export class AdzunaAdapter {
       what: opts.query ?? 'internship',
       results_per_page: opts.resultsPerPage ?? 50,
       sort_by: 'date',
-      content_type: 'application/json',
     };
 
     this.logger.log(
