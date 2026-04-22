@@ -47,3 +47,20 @@ enum ApplicationStatus {
   OFFER
   REJECTED
 }
+
+model JobListing {
+  id          String   @id @default(uuid())
+  source      String
+  sourceId    String
+  title       String
+  company     String
+  location    String?
+  description String?
+  applyUrl    String
+  salary      String?
+  postedAt    DateTime
+  fetchedAt   DateTime @default(now())
+
+  @@unique([source, sourceId])
+  @@index([postedAt])
+}
