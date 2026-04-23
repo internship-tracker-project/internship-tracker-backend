@@ -7,6 +7,7 @@ export interface AdzunaJob {
   redirect_url: string;
   salary_min?: number;
   salary_max?: number;
+  salary_is_predicted?: string;
   created: string;
 }
 
