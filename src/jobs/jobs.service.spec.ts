@@ -4,8 +4,10 @@ import { AdzunaAdapter } from './adapters/adzuna.adapter';
 import { JobsService } from './jobs.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-const normalizedJob = (overrides: Partial<NormalizedJob> = {}): NormalizedJob => ({
-  source: 'adzuna',
+const normalizedJob = (
+  overrides: Partial<NormalizedJob> = {},
+): NormalizedJob => ({
+  source: 'ADZUNA',
   sourceId: 'adz-1',
   title: 'Software Engineering Intern',
   company: 'Acme',
@@ -61,12 +63,16 @@ describe('JobsService', () => {
 
       const result = await service.ingest({ country: 'gb' });
 
-      expect(adzuna.fetchInternships).toHaveBeenCalledWith({ country: 'gb' });
+      expect(adzuna.fetchInternships).toHaveBeenCalledWith({
+        country: 'gb',
+        page: 1,
+        resultsPerPage: 50,
+      });
       expect(prisma.jobListing.upsert).toHaveBeenCalledTimes(2);
       expect(prisma.jobListing.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            source_sourceId: { source: 'adzuna', sourceId: 'adz-1' },
+            source_sourceId: { source: 'ADZUNA', sourceId: 'adz-1' },
           },
           create: jobs[0],
         }),
@@ -100,12 +106,65 @@ describe('JobsService', () => {
       expect(prisma.jobListing.upsert).not.toHaveBeenCalled();
       expect(result).toEqual({ fetched: 0, upserted: 0, failed: 0 });
     });
+
+    it('loops pages until a short page is returned, capped at 10', async () => {
+      const full = Array.from({ length: 50 }, (_, i) =>
+        normalizedJob({ sourceId: `f-${i}` }),
+      );
+      const partial = [normalizedJob({ sourceId: 'p-1' })];
+
+      adzuna.fetchInternships
+        .mockResolvedValueOnce(full)
+        .mockResolvedValueOnce(full)
+        .mockResolvedValueOnce(partial);
+
+      prisma.jobListing.upsert.mockResolvedValue({});
+
+      const result = await service.ingest();
+
+      expect(adzuna.fetchInternships).toHaveBeenCalledTimes(3);
+      expect(adzuna.fetchInternships).toHaveBeenNthCalledWith(1, {
+        page: 1,
+        resultsPerPage: 50,
+      });
+      expect(adzuna.fetchInternships).toHaveBeenNthCalledWith(2, {
+        page: 2,
+        resultsPerPage: 50,
+      });
+      expect(adzuna.fetchInternships).toHaveBeenNthCalledWith(3, {
+        page: 3,
+        resultsPerPage: 50,
+      });
+      expect(result.fetched).toBe(101);
+    });
+
+    it('stops after 10 pages even if every page is full', async () => {
+      const full = Array.from({ length: 50 }, (_, i) =>
+        normalizedJob({ sourceId: `f-${i}` }),
+      );
+      adzuna.fetchInternships.mockResolvedValue(full);
+      prisma.jobListing.upsert.mockResolvedValue({});
+
+      const result = await service.ingest();
+
+      expect(adzuna.fetchInternships).toHaveBeenCalledTimes(10);
+      expect(result.fetched).toBe(500);
+    });
+
+    it('fetches only the requested page when page is explicit', async () => {
+      adzuna.fetchInternships.mockResolvedValue([]);
+
+      await service.ingest({ page: 3 });
+
+      expect(adzuna.fetchInternships).toHaveBeenCalledTimes(1);
+      expect(adzuna.fetchInternships).toHaveBeenCalledWith({ page: 3 });
+    });
   });
 
   describe('list', () => {
     const row = {
       id: 'jl-1',
-      source: 'adzuna',
+      source: 'ADZUNA',
       sourceId: 'adz-1',
       title: 'SWE Intern',
       company: 'Acme',
@@ -138,23 +197,25 @@ describe('JobsService', () => {
       });
     });
 
-    it('applies q as a case-insensitive OR across title/company/description', async () => {
+    it('applies q as a case-insensitive OR across title and company only', async () => {
       prisma.$transaction.mockResolvedValue([0, []]);
 
       await service.list({ q: 'intern' });
 
-      const whereArg = prisma.jobListing.findMany.mock.calls[0][0].where;
-      expect(whereArg).toEqual({
-        AND: [
-          {
-            OR: [
-              { title: { contains: 'intern', mode: 'insensitive' } },
-              { company: { contains: 'intern', mode: 'insensitive' } },
-              { description: { contains: 'intern', mode: 'insensitive' } },
+      expect(prisma.jobListing.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [
+              {
+                OR: [
+                  { title: { contains: 'intern', mode: 'insensitive' } },
+                  { company: { contains: 'intern', mode: 'insensitive' } },
+                ],
+              },
             ],
           },
-        ],
-      });
+        }),
+      );
     });
 
     it('applies location as a case-insensitive contains', async () => {
@@ -162,10 +223,13 @@ describe('JobsService', () => {
 
       await service.list({ location: 'london' });
 
-      const whereArg = prisma.jobListing.findMany.mock.calls[0][0].where;
-      expect(whereArg).toEqual({
-        AND: [{ location: { contains: 'london', mode: 'insensitive' } }],
-      });
+      expect(prisma.jobListing.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [{ location: { contains: 'london', mode: 'insensitive' } }],
+          },
+        }),
+      );
     });
 
     it('combines q and location with AND', async () => {
@@ -173,8 +237,10 @@ describe('JobsService', () => {
 
       await service.list({ q: 'intern', location: 'london' });
 
-      const whereArg = prisma.jobListing.findMany.mock.calls[0][0].where;
-      expect(whereArg.AND).toHaveLength(2);
+      const calls = prisma.jobListing.findMany.mock.calls as [
+        { where: { AND: unknown[] } },
+      ][];
+      expect(calls[0][0].where.AND).toHaveLength(2);
     });
 
     it('computes skip/take from page and pageSize', async () => {

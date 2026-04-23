@@ -3,6 +3,7 @@ import type { JobListing, Prisma } from '../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdzunaAdapter } from './adapters/adzuna.adapter';
 import type { FetchInternshipsOptions } from './adapters/adzuna.adapter';
+import type { NormalizedJob } from './adapters/adzuna.types';
 import type { ListJobsDto } from './dto/list-jobs.dto';
 
 export interface IngestResult {
@@ -18,6 +19,9 @@ export interface ListJobsResult {
   pageSize: number;
 }
 
+const MAX_INGEST_PAGES = 10;
+const DEFAULT_RESULTS_PER_PAGE = 50;
+
 @Injectable()
 export class JobsService {
   private readonly logger = new Logger(JobsService.name);
@@ -28,7 +32,7 @@ export class JobsService {
   ) {}
 
   async ingest(opts: FetchInternshipsOptions = {}): Promise<IngestResult> {
-    const normalized = await this.adzuna.fetchInternships(opts);
+    const normalized = await this.fetchAllPages(opts);
     let upserted = 0;
     let failed = 0;
 
@@ -72,6 +76,29 @@ export class JobsService {
     return result;
   }
 
+  private async fetchAllPages(
+    opts: FetchInternshipsOptions,
+  ): Promise<NormalizedJob[]> {
+    if (opts.page !== undefined) {
+      return this.adzuna.fetchInternships(opts);
+    }
+
+    const resultsPerPage = opts.resultsPerPage ?? DEFAULT_RESULTS_PER_PAGE;
+    const accumulated: NormalizedJob[] = [];
+
+    for (let page = 1; page <= MAX_INGEST_PAGES; page++) {
+      const pageJobs = await this.adzuna.fetchInternships({
+        ...opts,
+        page,
+        resultsPerPage,
+      });
+      accumulated.push(...pageJobs);
+      if (pageJobs.length < resultsPerPage) break;
+    }
+
+    return accumulated;
+  }
+
   async list(dto: ListJobsDto = {}): Promise<ListJobsResult> {
     const page = dto.page ?? 1;
     const pageSize = dto.pageSize ?? 20;
@@ -98,7 +125,6 @@ export class JobsService {
         OR: [
           { title: { contains: dto.q, mode: 'insensitive' } },
           { company: { contains: dto.q, mode: 'insensitive' } },
-          { description: { contains: dto.q, mode: 'insensitive' } },
         ],
       });
     }
