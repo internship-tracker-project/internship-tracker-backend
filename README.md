@@ -110,6 +110,26 @@ Not used in production.
 | Cloud database hosting | Backups |
 | Admin UI | Secure connection endpoint |
 
+## Ingesting jobs
+
+The `/jobs` endpoints read from the `JobListing` table, which is populated by manually triggering the Adzuna ingestion endpoint.
+
+Required env vars (see `.env.example`):
+
+- `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` — Adzuna developer credentials
+- `INGEST_TOKEN` — shared secret for `POST /jobs/ingest`
+
+Trigger a run (loops up to 10 pages × 50 results = ~500 listings):
+
+```bash
+curl -X POST "$BACKEND_URL/jobs/ingest" \
+  -H "x-ingest-token: $INGEST_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+Optional JSON body fields: `country` (default `gb`), `query` (default `internship`), `page` (fetches a single page instead of looping), `resultsPerPage` (1–50, default 50). Response: `{ fetched, upserted, failed }`.
+
 ## Nest README
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>

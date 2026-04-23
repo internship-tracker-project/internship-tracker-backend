@@ -9,7 +9,8 @@ import type {
 } from './adzuna.types';
 
 const ADZUNA_BASE = 'https://api.adzuna.com/v1/api/jobs';
-export const ADZUNA_SOURCE = 'adzuna';
+export const ADZUNA_SOURCE = 'ADZUNA';
+const DESCRIPTION_MAX_CHARS = 500;
 
 export interface FetchInternshipsOptions {
   country?: string;
@@ -66,18 +67,43 @@ export class AdzunaAdapter {
       title: job.title,
       company: job.company?.display_name ?? 'Unknown',
       location: job.location?.display_name ?? null,
-      description: job.description ?? null,
+      description: sanitizeDescription(job.description),
       applyUrl: job.redirect_url,
-      salary: formatSalary(job.salary_min, job.salary_max),
+      salary: formatSalary(
+        job.salary_min,
+        job.salary_max,
+        job.salary_is_predicted,
+      ),
       postedAt: new Date(job.created),
     };
   }
 }
 
-function formatSalary(min?: number, max?: number): string | null {
+function formatSalary(
+  min: number | undefined,
+  max: number | undefined,
+  isPredicted: string | undefined,
+): string | null {
+  if (isPredicted === '1') return null;
+  if (!min || !max) return null;
   const fmt = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
-  if (min && max) return `${fmt(min)}–${fmt(max)}`;
-  if (min) return `from ${fmt(min)}`;
-  if (max) return `up to ${fmt(max)}`;
-  return null;
+  return `${fmt(min)}–${fmt(max)}`;
+}
+
+function sanitizeDescription(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const stripped = raw
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!stripped) return null;
+  return stripped.length > DESCRIPTION_MAX_CHARS
+    ? stripped.slice(0, DESCRIPTION_MAX_CHARS - 1).trimEnd() + '…'
+    : stripped;
 }
